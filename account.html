@@ -67,6 +67,7 @@
                 <button type="submit" class="btn btn--outline btn--full" style="margin-bottom:12px;">Save Changes</button>
             </form>
             <button id="logoutBtn" class="btn btn--dark btn--full">Log Out</button>
+            <a href="admin.html" id="adminLink" class="btn btn--outline btn--full" style="display:none; margin-top:10px;"><i class="fa fa-lock"></i> Admin Dashboard</a>
         </div>
 
         <div>
@@ -91,7 +92,7 @@
             </div>
             <div>
                 <h4>Support</h4>
-                <a href="track.html">Track Order</a>
+                <a href="account.html">Track Order</a>
                 <a href="contact.html">Contact Us</a>
             </div>
             <div>
@@ -160,6 +161,7 @@
         $("#profilePhone").text((profile && profile.phone) || "No phone on file");
         $("#editPhone").val(profile ? profile.phone : "");
         $("#editAddress").val(profile ? profile.address : "");
+        if (profile && profile.is_admin) $("#adminLink").show();
 
         const { data: orders, error } = await supabaseClient
             .from("orders").select("*, order_items(*)")
@@ -200,4 +202,5 @@
     });
 </script>
 </body>
-</html>
+    </html>
+                    
