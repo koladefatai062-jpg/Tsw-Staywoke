@@ -10,8 +10,8 @@
  * what actually protects the data.
  */
 
-const SUPABASE_URL = "https://fhhudlaidxfjeyyilktr.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZoaHVkbGFpZHhmamV5eWlsa3RyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ1Mzk3MzgsImV4cCI6MjEwMDExNTczOH0.y8Rf6VHwK2_dvegwFSM0C6FQDcDcEDXbwH01YE2P5PM";
+const SUPABASE_URL = "https://nhrzqyxofmfxtfllldyy.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ocnpxeXhvZm1meHRmbGxsZHl5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODc1NDMwODksImV4cCI6MjEwMzExOTA4OX0.pZy6EbpCkkAHGQI_IwcEbm3fPr6xURzuhDjRUxUpYAE";
 
 const IMGBB_API_KEY = "fda8242ebaef72454987329a59610ef0";
 
