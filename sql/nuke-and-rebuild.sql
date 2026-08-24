@@ -2,28 +2,13 @@
 -- 1. Go to https://supabase.com/dashboard → select your project → SQL Editor → New Query
 -- 2. Paste this entire script and click "Run"
 
--- STEP A: Nuke everything
-DROP POLICY IF EXISTS "profiles_select_own_or_admin" ON profiles;
-DROP POLICY IF EXISTS "profiles_update_own" ON profiles;
-DROP POLICY IF EXISTS "profiles_insert_own" ON profiles;
-DROP POLICY IF EXISTS "products_select_active" ON products;
-DROP POLICY IF EXISTS "products_admin_write" ON products;
-DROP POLICY IF EXISTS "products_admin_update" ON products;
-DROP POLICY IF EXISTS "products_admin_delete" ON products;
-DROP POLICY IF EXISTS "coupons_select_active" ON coupons;
-DROP POLICY IF EXISTS "coupons_admin_write" ON coupons;
-DROP POLICY IF EXISTS "coupons_admin_update" ON coupons;
-DROP POLICY IF EXISTS "coupons_admin_delete" ON coupons;
-DROP POLICY IF EXISTS "orders_select_own_or_admin" ON orders;
-DROP POLICY IF EXISTS "orders_insert_own" ON orders;
-DROP POLICY IF EXISTS "orders_admin_update" ON orders;
-DROP POLICY IF EXISTS "order_items_select" ON order_items;
-DROP POLICY IF EXISTS "order_items_insert" ON order_items;
-
+-- STEP A: Nuke everything (drop tables first — CASCADE removes their policies & functions too)
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS product_loves CASCADE;
 DROP TABLE IF EXISTS coupons CASCADE;
 DROP TABLE IF EXISTS products CASCADE;
+DROP TABLE IF EXISTS profiles CASCADE;
 
 -- STEP B: Create tables
 CREATE TABLE IF NOT EXISTS profiles (
@@ -229,9 +214,9 @@ INSERT INTO products (name, category, price, image_url, description, stock, is_a
 ON CONFLICT DO NOTHING;
 
 -- STEP H: Create your profile and make yourself admin
--- Replace YOUR_EMAIL_HERE with the email you used to sign up
+-- Add your email (or multiple emails separated by commas) inside the IN (...) clause
 INSERT INTO profiles (id, email, is_admin)
 SELECT id, email, true
 FROM auth.users
-WHERE email = 'YOUR_EMAIL_HERE'
+WHERE email IN ('your@email.com', 'friend@email.com')
 ON CONFLICT (id) DO UPDATE SET is_admin = true;
