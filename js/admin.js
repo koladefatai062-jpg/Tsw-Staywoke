@@ -54,7 +54,12 @@
   // ---------------- PRODUCTS ----------------
   var AdminProducts = {
     async load() {
-      var result = await supabaseClient.from("products").select("*").order("created_at", { ascending: false });
+      try {
+        var result = await supabaseClient.from("products").select("*").order("created_at", { ascending: false });
+      } catch (e) {
+        toast("Could not load products: " + e.message);
+        return;
+      }
       var data = result.data;
       var error = result.error;
       if (error) {
@@ -88,13 +93,17 @@
         if (product) AdminProducts.fillForm(product);
       });
       $tbody.find("[data-delete-product]").on("click", async function () {
-        if (!confirm("Delete this product?")) return;
-        var pid = $(this).data("delete-product");
-        var res = await supabaseClient.from("products").delete().eq("id", pid);
-        if (res.error) { toast("Delete failed: " + res.error.message); return; }
-        toast("Product deleted");
-        AdminProducts.load();
-      });
+         if (!confirm("Delete this product?")) return;
+         var pid = $(this).data("delete-product");
+         try {
+           var res = await supabaseClient.from("products").delete().eq("id", pid);
+           if (res.error) { toast("Delete failed: " + res.error.message); return; }
+           toast("Product deleted");
+           AdminProducts.load();
+         } catch (err) {
+           toast("Delete failed: " + err.message);
+         }
+       });
     },
 
     fillForm(product) {
@@ -209,7 +218,12 @@
   // ---------------- ORDERS ----------------
   var AdminOrders = {
     async load() {
-      var result = await supabaseClient.from("orders").select("*, order_items(*)").order("created_at", { ascending: false });
+      try {
+        var result = await supabaseClient.from("orders").select("*, order_items(*)").order("created_at", { ascending: false });
+      } catch (e) {
+        toast("Could not load orders: " + e.message);
+        return;
+      }
       var data = result.data;
       var error = result.error;
       if (error) { toast("Could not load orders: " + error.message); return; }
@@ -238,18 +252,27 @@
       }).join(""));
 
       $tbody.find("[data-status-select]").on("change", async function () {
-        var oid = $(this).data("status-select");
-        var newStatus = $(this).val();
-        var res = await supabaseClient.from("orders").update({ status: newStatus }).eq("id", oid);
-        if (res.error) toast(res.error.message); else toast("Order status updated");
-      });
+         var oid = $(this).data("status-select");
+         var newStatus = $(this).val();
+         try {
+           var res = await supabaseClient.from("orders").update({ status: newStatus }).eq("id", oid);
+           if (res.error) toast(res.error.message); else toast("Order status updated");
+         } catch (err) {
+           toast("Status update failed: " + err.message);
+         }
+       });
     }
   };
 
   // ---------------- CUSTOMERS ----------------
   var AdminCustomers = {
     async load() {
-      var result = await supabaseClient.from("profiles").select("*").order("created_at", { ascending: false });
+      try {
+        var result = await supabaseClient.from("profiles").select("*").order("created_at", { ascending: false });
+      } catch (e) {
+        toast("Could not load customers: " + e.message);
+        return;
+      }
       var data = result.data;
       var error = result.error;
       if (error) { toast("Could not load customers: " + error.message); return; }
@@ -275,7 +298,12 @@
   // ---------------- COUPONS ----------------
   var AdminCoupons = {
     async load() {
-      var result = await supabaseClient.from("coupons").select("*");
+      try {
+        var result = await supabaseClient.from("coupons").select("*");
+      } catch (e) {
+        toast("Could not load coupons: " + e.message);
+        return;
+      }
       var data = result.data;
       var error = result.error;
       if (error) { toast("Could not load coupons: " + error.message); return; }
@@ -300,17 +328,25 @@
       }).join(""));
 
       $tbody.find("[data-toggle-coupon]").on("click", async function () {
-        var code = $(this).data("toggle-coupon");
-        var isActive = $(this).data("active") === true || $(this).data("active") === "true";
-        await supabaseClient.from("coupons").update({ is_active: !isActive }).eq("code", code);
-        AdminCoupons.load();
-      });
-      $tbody.find("[data-delete-coupon]").on("click", async function () {
-        if (!confirm("Delete this coupon?")) return;
-        await supabaseClient.from("coupons").delete().eq("code", $(this).data("delete-coupon"));
-        toast("Coupon deleted");
-        AdminCoupons.load();
-      });
+         var code = $(this).data("toggle-coupon");
+         var isActive = $(this).data("active") === true || $(this).data("active") === "true";
+         try {
+           await supabaseClient.from("coupons").update({ is_active: !isActive }).eq("code", code);
+           AdminCoupons.load();
+         } catch (err) {
+           toast("Coupon update failed: " + err.message);
+         }
+       });
+       $tbody.find("[data-delete-coupon]").on("click", async function () {
+         if (!confirm("Delete this coupon?")) return;
+         try {
+           await supabaseClient.from("coupons").delete().eq("code", $(this).data("delete-coupon"));
+           toast("Coupon deleted");
+           AdminCoupons.load();
+         } catch (err) {
+           toast("Coupon delete failed: " + err.message);
+         }
+       });
     },
 
     async save(e) {
@@ -322,11 +358,15 @@
         is_active: true,
         expires_at: $("#couponExpiry").val() || null
       };
-      var result = await supabaseClient.from("coupons").upsert(payload);
-      if (result.error) { toast("Coupon save failed: " + result.error.message); return; }
-      toast("Coupon saved!");
-      $("#couponForm")[0].reset();
-      AdminCoupons.load();
+      try {
+        var result = await supabaseClient.from("coupons").upsert(payload);
+        if (result.error) { toast("Coupon save failed: " + result.error.message); return; }
+        toast("Coupon saved!");
+        $("#couponForm")[0].reset();
+        AdminCoupons.load();
+      } catch (err) {
+        toast("Coupon save failed: " + err.message);
+      }
     }
   };
 

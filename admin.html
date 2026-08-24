@@ -36,7 +36,7 @@
                 <h3 style="color:#dc3545;margin-bottom:12px;">Database Not Ready</h3>
                 <p style="color:var(--muted);margin-bottom:20px;">Your Supabase database needs to be set up. Run this ONE script:</p>
                 <ol style="text-align:left;color:var(--text);margin-bottom:20px;line-height:2;">
-                    <li>Open <a href="https://supabase.com/dashboard/project/fhhudlaidxfjeyyilktr/sql/new" target="_blank" style="color:var(--accent);">Supabase SQL Editor</a></li>
+                    <li>Open <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent);">Supabase SQL Editor</a></li>
                     <li>Paste the contents of <strong>sql/nuke-and-rebuild.sql</strong> from your project</li>
                     <li>Replace <code style="background:var(--surface);padding:2px 6px;border-radius:3px;">YOUR_EMAIL_HERE</code> with your actual email</li>
                     <li>Click <strong>Run</strong></li>
@@ -155,14 +155,32 @@
         $("#adminGate").addClass("d-none");
 
         // First check if the products table even exists
-        var tableCheck = await supabaseClient.from("products").select("id").limit(1);
+        var tableCheck;
+        try {
+          tableCheck = await supabaseClient.from("products").select("id").limit(1);
+        } catch (e) {
+          console.error("[TSW] Supabase reachable check failed:", e);
+          $("#adminGate").html(
+              '<div style="max-width:600px;margin:0 auto;background:var(--bg);border:2px solid #dc3545;border-radius:8px;padding:32px;">' +
+              '<h3 style="color:#dc3545;margin-bottom:12px;">Connection Failed</h3>' +
+              '<p style="color:var(--muted);margin-bottom:20px;">Could not reach Supabase. Common causes:</p>' +
+              '<ul style="text-align:left;color:var(--text);margin-bottom:20px;line-height:2;">' +
+                  '<li>The Supabase project URL in <strong>js/supabase-config.js</strong> is wrong or the project was deleted.</li>' +
+                  '<li>Your Vercel domain is not in Supabase &rarr; Project Settings &rarr; API &rarr; CORS Origins.</li>' +
+                  '<li>The Supabase project is paused (free tier). Resume it in the dashboard.</li>' +
+              '</ul>' +
+              '<button onclick="location.reload()" class="btn btn--dark">Retry</button>' +
+              '</div>'
+          ).removeClass("d-none");
+          return;
+        }
         if (tableCheck.error && tableCheck.error.message && tableCheck.error.message.indexOf("relation") !== -1) {
             $("#adminGate").html(
                 '<div style="max-width:600px;margin:0 auto;background:var(--bg);border:2px solid #dc3545;border-radius:8px;padding:32px;">' +
                 '<h3 style="color:#dc3545;margin-bottom:12px;">Database Not Ready</h3>' +
                 '<p style="color:var(--muted);margin-bottom:20px;">Your Supabase tables need to be created. Run this ONE script:</p>' +
                 '<ol style="text-align:left;color:var(--text);margin-bottom:20px;line-height:2;">' +
-                    '<li>Open <a href="https://supabase.com/dashboard/project/fhhudlaidxfjeyyilktr/sql/new" target="_blank" style="color:var(--accent);">Supabase SQL Editor</a></li>' +
+                    '<li>Open <a href="https://supabase.com/dashboard" target="_blank" style="color:var(--accent);">Supabase SQL Editor</a></li>' +
                     '<li>Paste the contents of <strong>sql/nuke-and-rebuild.sql</strong></li>' +
                     '<li>Replace <code style="background:var(--surface);padding:2px 6px;border-radius:3px;">YOUR_EMAIL_HERE</code> with: <strong>' + (session.user.email || '') + '</strong></li>' +
                     '<li>Click <strong>Run</strong>, then reload this page</li>' +
@@ -192,22 +210,26 @@
                 '<div style="background:var(--surface);padding:12px;border-radius:6px;font-family:monospace;font-size:0.75rem;word-break:break-all;margin-top:8px;">' + sqlSnippet + '</div>' +
                 '</div>'
             ).removeClass("d-none");
-            $("#autoMakeAdmin").on("click", async function () {
-                var $btn = $(this);
-                $btn.prop("disabled", true).text("Working...");
-                // Try profiles upsert (needs INSERT policy on profiles)
-                var res = await supabaseClient.from("profiles").upsert({
-                    id: userId,
-                    email: userEmail,
-                    is_admin: true
-                }, { onConflict: "id" });
-                if (res.error) {
-                    $btn.prop("disabled", false).text("Make Me Admin (one click)");
-                    alert("Error: " + res.error.message + "\n\nPlease copy the SQL below and run it manually in Supabase SQL Editor:\n\n" + sqlSnippet);
-                } else {
-                    location.reload();
-                }
-            });
+             $("#autoMakeAdmin").on("click", async function () {
+                 var $btn = $(this);
+                 $btn.prop("disabled", true).text("Working...");
+                 try {
+                   var res = await supabaseClient.from("profiles").upsert({
+                       id: userId,
+                       email: userEmail,
+                       is_admin: true
+                   }, { onConflict: "id" });
+                   if (res.error) {
+                       $btn.prop("disabled", false).text("Make Me Admin (one click)");
+                       alert("Error: " + res.error.message + "\n\nPlease copy the SQL below and run it manually in Supabase SQL Editor:\n\n" + sqlSnippet);
+                   } else {
+                       location.reload();
+                   }
+                 } catch (err) {
+                   $btn.prop("disabled", false).text("Make Me Admin (one click)");
+                   alert("Connection error: " + err.message + "\n\nPlease copy the SQL below and run it manually in Supabase SQL Editor:\n\n" + sqlSnippet);
+                 }
+             });
             return;
         }
 

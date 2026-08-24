@@ -163,17 +163,18 @@
         $("#editAddress").val(profile ? profile.address : "");
         if (profile && profile.is_admin) $("#adminLink").show();
 
-        const { data: orders, error } = await supabaseClient
-            .from("orders").select("*, order_items(*)")
-            .eq("user_id", currentSession.user.id).order("created_at", { ascending: false });
-
         const $list = $("#ordersList");
-        if (error || !orders || orders.length === 0) {
-            $list.html('<p style="color:var(--muted);">No orders yet. Once you check out via WhatsApp, your order will show up here.</p>');
-            return;
-        }
+        try {
+            const { data: orders, error } = await supabaseClient
+                .from("orders").select("*, order_items(*)")
+                .eq("user_id", currentSession.user.id).order("created_at", { ascending: false });
 
-        $list.html(orders.map(order => `
+            if (error || !orders || orders.length === 0) {
+                $list.html('<p style="color:var(--muted);">No orders yet. Once you check out via WhatsApp, your order will show up here.</p>');
+                return;
+            }
+
+            $list.html(orders.map(order => `
             <div style="border:1px solid var(--border); border-radius:4px; padding:16px; margin-bottom:12px;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
                     <strong>#${order.order_number}</strong>
@@ -186,6 +187,10 @@
                 <p style="margin:0; color:var(--accent); font-weight:700;">Total: ${formatNaira(order.total)}</p>
             </div>
         `).join(""));
+        } catch (e) {
+            console.warn("[TSW] Supabase order fetch failed:", e);
+            $list.html('<p style="color:var(--muted);">Unable to load orders right now. Please try again later.</p>');
+        }
     }
 
     $(document).ready(function () {
@@ -193,10 +198,15 @@
         $("#profileForm").on("submit", async function (e) {
             e.preventDefault();
             if (!currentSession) return;
-            await supabaseClient.from("profiles").update({
-                phone: $("#editPhone").val().trim(), address: $("#editAddress").val().trim()
-            }).eq("id", currentSession.user.id);
-            if (window.TSWCart) TSWCart.toast("Profile updated"); else alert("Profile updated");
+            try {
+                await supabaseClient.from("profiles").update({
+                    phone: $("#editPhone").val().trim(), address: $("#editAddress").val().trim()
+                }).eq("id", currentSession.user.id);
+                if (window.TSWCart) TSWCart.toast("Profile updated"); else alert("Profile updated");
+            } catch (err) {
+                console.warn("[TSW] Profile update failed:", err);
+                if (window.TSWCart) TSWCart.toast("Couldn't save changes"); else alert("Couldn't save changes");
+            }
         });
         $("#logoutBtn").on("click", function () { TSWAuth.logout(); });
     });

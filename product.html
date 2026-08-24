@@ -169,13 +169,17 @@
         let product = null;
 
         if (id && typeof supabaseClient !== "undefined" && supabaseClient) {
-            const { data } = await supabaseClient.from("products").select("*").eq("id", id).maybeSingle();
-            if (data) {
-                product = {
-                    id: data.id, name: data.name, category: data.category,
-                    price: data.sale_price || data.price, image: data.image_url,
-                    colors: data.colors || [], sizes: data.sizes || [], description: data.description
-                };
+            try {
+                const { data } = await supabaseClient.from("products").select("*").eq("id", id).maybeSingle();
+                if (data) {
+                    product = {
+                        id: data.id, name: data.name, category: data.category,
+                        price: data.sale_price || data.price, image: data.image_url,
+                        colors: data.colors || [], sizes: data.sizes || [], description: data.description
+                    };
+                }
+            } catch (e) {
+                console.warn("[TSW] Supabase product fetch failed — using static catalog:", e);
             }
         }
         if (!product && id) {
@@ -211,12 +215,16 @@
     async function loadRelated(product) {
         let related = STATIC_PRODUCTS.filter(p => p.category === product.category && p.id !== product.id);
         if (typeof supabaseClient !== "undefined" && supabaseClient) {
-            const { data } = await supabaseClient.from("products").select("*")
-                .eq("category", product.category).eq("is_active", true).limit(8);
-            if (data && data.length) {
-                related = data.filter(p => p.id !== product.id).map(p => ({
-                    id: p.id, name: p.name, price: p.sale_price || p.price, image: p.image_url
-                }));
+            try {
+                const { data } = await supabaseClient.from("products").select("*")
+                    .eq("category", product.category).eq("is_active", true).limit(8);
+                if (data && data.length) {
+                    related = data.filter(p => p.id !== product.id).map(p => ({
+                        id: p.id, name: p.name, price: p.sale_price || p.price, image: p.image_url
+                    }));
+                }
+            } catch (e) {
+                console.warn("[TSW] Supabase related products fetch failed — using static catalog:", e);
             }
         }
         related = related.slice(0, 4);

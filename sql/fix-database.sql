@@ -45,6 +45,7 @@ CREATE TABLE coupons (
 CREATE TABLE orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number text UNIQUE NOT NULL,
+  tracking_id text UNIQUE NOT NULL,
   user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   customer_name text NOT NULL,
   customer_phone text NOT NULL,
@@ -112,28 +113,70 @@ CREATE POLICY "order_items_insert" ON order_items
     EXISTS (SELECT 1 FROM orders WHERE orders.id = order_items.order_id
             AND (orders.user_id = auth.uid() OR orders.user_id IS NULL))
   );
+-- Allow anonymous tracking by tracking_id (for track.html, no login required)
+CREATE POLICY "orders_track_by_id" ON orders FOR SELECT USING (true);
+CREATE POLICY "order_items_track" ON order_items FOR SELECT USING (true);
 
--- 7. SEED PRODUCTS (16 items)
+-- 7. LOVES / HEARTS
+CREATE TABLE IF NOT EXISTS product_loves (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_slug text NOT NULL,
+  device_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (product_slug, device_id)
+);
+ALTER TABLE product_loves ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "product_loves_select_all" ON product_loves FOR SELECT USING (true);
+
+CREATE OR REPLACE FUNCTION toggle_product_love(p_slug text, p_device text)
+RETURNS TABLE(loved boolean, love_count bigint)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  existing_id uuid;
+BEGIN
+  SELECT id INTO existing_id FROM product_loves
+    WHERE product_slug = p_slug AND device_id = p_device;
+  IF existing_id IS NOT NULL THEN
+    DELETE FROM product_loves WHERE id = existing_id;
+  ELSE
+    INSERT INTO product_loves (product_slug, device_id) VALUES (p_slug, p_device);
+  END IF;
+  RETURN QUERY
+    SELECT existing_id IS NULL AS loved,
+           (SELECT COUNT(*) FROM product_loves WHERE product_slug = p_slug) AS love_count;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION toggle_product_love(text, text) TO anon, authenticated;
+
+CREATE OR REPLACE FUNCTION get_product_love(p_slug text, p_device text)
+RETURNS TABLE(loved boolean, love_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT
+    EXISTS(SELECT 1 FROM product_loves WHERE product_slug = p_slug AND device_id = p_device) AS loved,
+    (SELECT COUNT(*) FROM product_loves WHERE product_slug = p_slug) AS love_count;
+$$;
+GRANT EXECUTE ON FUNCTION get_product_love(text, text) TO anon, authenticated;
+
+-- 8. SEED PRODUCTS (matches the 16 items hardcoded in the HTML + nuke-and-rebuild.sql)
 INSERT INTO products (name, category, price, image_url, description, stock, is_active, is_featured, is_new) VALUES
-('Shadow Hoodie', 'hoodies', 25000, 'img/1.jpg', 'Oversized black hoodie with embossed TSW logo. Premium heavyweight cotton.', 15, true, true, true),
-('Midnight Graphic Tee', 'tees', 8500, 'img/2.jpg', 'Relaxed-fit tee with midnight graphic print. 100% cotton.', 30, true, false, true),
-('Stealth Cargo Pants', 'pants', 18000, 'img/3.jpg', 'Tactical cargo pants with multiple pockets. Water-resistant finish.', 20, true, true, false),
-('Urban Windbreaker', 'jackets', 22000, 'img/4.jpg', 'Lightweight windbreaker with reflective details. Perfect for layering.', 12, true, false, true),
-('Classic TSW Cap', 'accessories', 5500, 'img/5.jpg', 'Structured baseball cap with embroidered logo. Adjustable strap.', 40, true, false, false),
-('Premium Joggers', 'pants', 15000, 'img/6.jpg', 'Tapered joggers with side pockets. French terry cotton.', 25, true, true, false),
-('Oversized Denim Jacket', 'jackets', 28000, 'img/7.jpg', 'Raw denim jacket with distressed details. Limited edition.', 8, true, true, true),
-('Streetwear Bucket Hat', 'accessories', 4500, 'img/8.jpg', 'Reversible bucket hat with tonal branding.', 35, true, false, true),
-('Logo Puffer Vest', 'jackets', 32000, 'img/9.jpg', 'Insulated puffer vest with detachable hood. Water-repellent.', 10, true, true, false),
-('Textured Knit Sweater', 'tees', 12000, 'img/10.jpg', 'Ribbed knit sweater with subtle logo. Relaxed fit.', 18, true, false, false),
-('Relaxed Fit Jeans', 'pants', 16000, 'img/11.jpg', 'Wide-leg jeans with vintage wash. 12oz denim.', 22, true, false, true),
-('Tech Fleece Hoodie', 'hoodies', 22000, 'img/12.jpg', 'Slim-fit tech fleece with zip pockets. Lightweight warmth.', 14, true, true, true),
-('Canvas High-Tops', 'accessories', 19000, 'img/13.jpg', 'Premium canvas sneakers with vulcanized sole. TSW branding.', 20, true, false, false),
-('Layered Chain Necklace', 'accessories', 7500, 'img/14.jpg', 'Stainless steel layered chain set. Hypoallergenic.', 30, true, false, true),
-('Graphic Pullover', 'hoodies', 17000, 'img/15.jpg', 'Heavyweight pullover with all-over print. Brushed interior.', 16, true, false, true),
-('Utility Backpack', 'accessories', 14000, 'img/16.jpg', 'Water-resistant backpack with padded laptop sleeve.', 25, true, true, false);
+('Customized Bernie Cap', 'caps', 7999, 'img/1.jpg', 'Custom embroidered TSW bernie cap.', 20, true, false, true),
+('BIKER Shorts', 'bottoms', 5999, 'img/5.jpg', 'Fitted biker shorts with logo detail.', 25, true, false, false),
+('Zipper Hoodie', 'hoodies', 39999, 'img/8.jpg', 'Full-zip premium hoodie.', 10, true, true, false),
+('Hoodie', 'hoodies', 19000, 'img/9.jpg', 'Classic pullover hoodie.', 15, true, true, false),
+('Stoned Kiddies Wear', 'kids', 19999, 'img/10.jpg', 'Kids streetwear set.', 12, true, false, true),
+('Hoodie & JOGGERS', 'sets', 29999, 'img/13.jpg', 'Hoodie and joggers set.', 12, true, true, false),
+('Track Cargo Set', 'sets', 34999, 'img/17.jpg', 'Full cargo track set.', 10, true, true, false),
+('Bomber Jacket', 'outerwear', 32000, 'img/18.jpg', 'Classic bomber jacket.', 8, true, true, false),
+('Denim Trucker Jacket', 'outerwear', 29999, 'img/24.jpg', 'Raw denim trucker jacket.', 12, true, true, false),
+('Kiddies Hoodie Set', 'kids', 20000, 'img/new 1 (1).jpg', 'Kids hoodie and trouser set.', 15, true, false, true),
+('Tube Top & Knicker', 'kids', 15000, 'img/new 1 (2).jpg', 'Customized tube top and knicker set.', 18, true, false, true),
+('4 Pocket Trouser & Top', 'kids', 18000, 'img/new 1 (3).jpg', 'Four pocket trouser and top set.', 14, true, false, true),
+('Kids Denim Overall', 'kids', 24999, 'img/24.jpg', 'Denim overall set for kids.', 10, true, false, true),
+('Classic TSW Tee', 'tees', 8500, 'img/19.jpg', 'Classic cotton tee.', 30, true, false, true),
+('Streetwear Bucket Hat', 'accessories', 4500, 'img/20.jpg', 'Reversible bucket hat.', 35, true, false, true),
+('Utility Backpack', 'accessories', 14000, 'img/21.jpg', 'Water-resistant backpack.', 20, true, true, false)
+ON CONFLICT DO NOTHING;
 
--- 8. MAKE YOURSELF ADMIN
+-- 9. MAKE YOURSELF ADMIN
 -- Replace YOUR_EMAIL with the email you used to register:
---
--- UPDATE profiles SET is_admin = true
--- WHERE id = (SELECT id FROM auth.users WHERE email = 'YOUR_EMAIL');
+-- UPDATE profiles SET is_admin = true WHERE id = (SELECT id FROM auth.users WHERE email = 'YOUR_EMAIL');

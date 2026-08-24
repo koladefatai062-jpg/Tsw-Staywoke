@@ -82,25 +82,30 @@
       code = code.trim().toUpperCase();
       if (!code) return;
 
-      var { data, error } = await supabaseClient
-        .from("coupons")
-        .select("*")
-        .eq("code", code)
-        .eq("is_active", true)
-        .maybeSingle();
+      try {
+        var { data, error } = await supabaseClient
+          .from("coupons")
+          .select("*")
+          .eq("code", code)
+          .eq("is_active", true)
+          .maybeSingle();
 
-      if (error || !data) {
-        Cart.toast("Invalid or expired code");
-        return;
-      }
-      if (data.expires_at && new Date(data.expires_at) < new Date()) {
-        Cart.toast("This code has expired");
-        return;
-      }
+        if (error || !data) {
+          Cart.toast("Invalid or expired code");
+          return;
+        }
+        if (data.expires_at && new Date(data.expires_at) < new Date()) {
+          Cart.toast("This code has expired");
+          return;
+        }
 
-      localStorage.setItem(COUPON_KEY, JSON.stringify({ code: data.code, type: data.type, value: Number(data.value) }));
-      Cart.toast("Discount code applied");
-      Cart.renderOffcanvas();
+        localStorage.setItem(COUPON_KEY, JSON.stringify({ code: data.code, type: data.type, value: Number(data.value) }));
+        Cart.toast("Discount code applied");
+        Cart.renderOffcanvas();
+      } catch (e) {
+        console.warn("[TSW] Supabase coupon lookup failed:", e);
+        Cart.toast("Couldn't verify discount code right now");
+      }
     },
     removeCoupon: function (rerender) {
       localStorage.removeItem(COUPON_KEY);

@@ -66,6 +66,7 @@ create table if not exists coupons (
 create table if not exists orders (
   id uuid primary key default gen_random_uuid(),
   order_number text unique not null,
+  tracking_id text unique not null,
   user_id uuid references auth.users(id) on delete set null,
   customer_name text not null,
   customer_phone text not null,
@@ -148,6 +149,53 @@ create policy "order_items_insert" on order_items
     exists (select 1 from orders where orders.id = order_items.order_id
             and (orders.user_id = auth.uid() or orders.user_id is null))
   );
+
+-- Allow anonymous order lookup by tracking_id (for track.html, no login required)
+create policy "orders_track_by_id" on orders for select using (true);
+create policy "order_items_track" on order_items for select using (true);
+
+-- ============================================================================
+-- LOVES / HEARTS
+-- ============================================================================
+create table if not exists product_loves (
+  id uuid primary key default gen_random_uuid(),
+  product_slug text not null,
+  device_id text not null,
+  created_at timestamptz not null default now(),
+  unique (product_slug, device_id)
+);
+alter table product_loves enable row level security;
+create policy "product_loves_select_all" on product_loves for select using (true);
+
+create or replace function toggle_product_love(p_slug text, p_device text)
+returns table(loved boolean, love_count bigint)
+language plpgsql security definer as $$
+declare
+  existing_id uuid;
+begin
+  select id into existing_id from product_loves
+    where product_slug = p_slug and device_id = p_device;
+  if existing_id is not null then
+    delete from product_loves where id = existing_id;
+  else
+    insert into product_loves (product_slug, device_id) values (p_slug, p_device);
+  end if;
+  return query
+    select
+      existing_id is null as loved,
+      (select count(*) from product_loves where product_slug = p_slug) as love_count;
+end;
+$$;
+grant execute on function toggle_product_love(text, text) to anon, authenticated;
+
+create or replace function get_product_love(p_slug text, p_device text)
+returns table(loved boolean, love_count bigint)
+language sql stable as $$
+  select
+    exists(select 1 from product_loves where product_slug = p_slug and device_id = p_device) as loved,
+    (select count(*) from product_loves where product_slug = p_slug) as love_count;
+$$;
+grant execute on function get_product_love(text, text) to anon, authenticated;
 
 -- ============================================================================
 -- MAKE YOURSELF AN ADMIN

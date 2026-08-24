@@ -24,9 +24,13 @@
         options: { data: { full_name: fullName } }
       });
       if (error) throw error;
-      // Save phone separately since it's not part of auth.users metadata by default
+      // Save phone separately (non-blocking — profile update failure shouldn't fail signup)
       if (data.user) {
-        await supabaseClient.from("profiles").update({ phone }).eq("id", data.user.id);
+        try {
+          await supabaseClient.from("profiles").update({ phone }).eq("id", data.user.id);
+        } catch (err) {
+          console.warn("[TSW] Phone save to profile failed (non-blocking):", err);
+        }
       }
       return data;
     },
@@ -46,14 +50,24 @@
 
     async getSession() {
       if (!supabaseClient) return null;
-      const { data } = await supabaseClient.auth.getSession();
-      return data.session;
+      try {
+        const { data } = await supabaseClient.auth.getSession();
+        return data.session;
+      } catch (e) {
+        console.warn("[TSW] Supabase auth session check failed:", e);
+        return null;
+      }
     },
 
     async getProfile(userId) {
       if (!supabaseClient) return null;
-      const { data } = await supabaseClient.from("profiles").select("*").eq("id", userId).single();
-      return data;
+      try {
+        const { data } = await supabaseClient.from("profiles").select("*").eq("id", userId).single();
+        return data;
+      } catch (e) {
+        console.warn("[TSW] Supabase profile fetch failed:", e);
+        return null;
+      }
     },
 
     async requireLogin(redirectTo = "login.html") {

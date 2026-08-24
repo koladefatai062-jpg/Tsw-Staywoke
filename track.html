@@ -153,16 +153,21 @@
     return html;
   }
 
-  async function lookupOrder(trackingId) {
-    if (!supabaseClient) return null;
-    var { data, error } = await supabaseClient
-      .from("orders")
-      .select("*, order_items(*)")
-      .eq("tracking_id", trackingId.trim().toUpperCase())
-      .maybeSingle();
-    if (error || !data) return null;
-    return data;
-  }
+   async function lookupOrder(trackingId) {
+     if (!supabaseClient) return null;
+     try {
+       var { data, error } = await supabaseClient
+         .from("orders")
+         .select("*, order_items(*)")
+         .eq("tracking_id", trackingId.trim().toUpperCase())
+         .maybeSingle();
+       if (error || !data) return null;
+       return data;
+     } catch (e) {
+       console.warn("[TSW] Supabase order lookup failed:", e);
+       return null;
+     }
+   }
 
   async function runTracking() {
     var id = ($("#trackInput").val() || "").trim().toUpperCase();

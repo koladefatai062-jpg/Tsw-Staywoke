@@ -32,11 +32,19 @@
   async function loadStoreProducts() {
     if (typeof supabaseClient === "undefined" || !supabaseClient) return;
 
-    const { data, error } = await supabaseClient
-      .from("products")
-      .select("*")
-      .eq("is_active", true)
-      .order("created_at", { ascending: false });
+    let data, error;
+    try {
+      var result = await supabaseClient
+        .from("products")
+        .select("*")
+        .eq("is_active", true)
+        .order("created_at", { ascending: false });
+      data = result.data;
+      error = result.error;
+    } catch (e) {
+      console.warn("[TSW] Supabase products fetch failed — keeping static HTML:", e);
+      return;
+    }
 
     if (error || !data || data.length === 0) return;
 

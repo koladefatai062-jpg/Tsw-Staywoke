@@ -1,5 +1,6 @@
 -- TSW NUCLEAR RESET — This drops EVERYTHING and rebuilds from scratch.
--- Paste this entire script into https://supabase.com/dashboard/project/fhhudlaidxfjeyyilktr/sql/new and click RUN.
+-- 1. Go to https://supabase.com/dashboard → select your project → SQL Editor → New Query
+-- 2. Paste this entire script and click "Run"
 
 -- STEP A: Nuke everything
 DROP POLICY IF EXISTS "profiles_select_own_or_admin" ON profiles;
@@ -63,6 +64,7 @@ CREATE TABLE coupons (
 CREATE TABLE orders (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   order_number text UNIQUE NOT NULL,
+  tracking_id text UNIQUE NOT NULL,
   user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   customer_name text NOT NULL,
   customer_phone text NOT NULL,
@@ -138,6 +140,9 @@ CREATE POLICY "order_items_insert" ON order_items
     EXISTS (SELECT 1 FROM orders WHERE orders.id = order_items.order_id
             AND (orders.user_id = auth.uid() OR orders.user_id IS NULL))
   );
+-- Allow anonymous tracking by tracking_id (for track.html no-login lookup)
+CREATE POLICY "orders_track_by_id" ON orders FOR SELECT USING (true);
+CREATE POLICY "order_items_track" ON order_items FOR SELECT USING (true);
 
 -- STEP E: Trigger for auto-profile
 CREATE OR REPLACE FUNCTION handle_new_user()
@@ -160,6 +165,48 @@ CREATE OR REPLACE FUNCTION is_admin()
 RETURNS boolean AS $$
   SELECT COALESCE((SELECT is_admin FROM profiles WHERE id = auth.uid()), false);
 $$ LANGUAGE sql STABLE SECURITY DEFINER;
+
+-- STEP F-2: Loves / Hearts (keyed by product slug, one love per device)
+CREATE TABLE IF NOT EXISTS product_loves (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  product_slug text NOT NULL,
+  device_id text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (product_slug, device_id)
+);
+ALTER TABLE product_loves ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "product_loves_select_all" ON product_loves FOR SELECT USING (true);
+
+-- Toggle function: one RPC call toggles + returns new state + count
+CREATE OR REPLACE FUNCTION toggle_product_love(p_slug text, p_device text)
+RETURNS TABLE(loved boolean, love_count bigint)
+LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  existing_id uuid;
+BEGIN
+  SELECT id INTO existing_id FROM product_loves
+    WHERE product_slug = p_slug AND device_id = p_device;
+  IF existing_id IS NOT NULL THEN
+    DELETE FROM product_loves WHERE id = existing_id;
+  ELSE
+    INSERT INTO product_loves (product_slug, device_id) VALUES (p_slug, p_device);
+  END IF;
+  RETURN QUERY
+    SELECT existing_id IS NULL AS loved,
+           (SELECT COUNT(*) FROM product_loves WHERE product_slug = p_slug) AS love_count;
+END;
+$$;
+GRANT EXECUTE ON FUNCTION toggle_product_love(text, text) TO anon, authenticated;
+
+-- Read-only helper: get current love count + whether this device loved it
+CREATE OR REPLACE FUNCTION get_product_love(p_slug text, p_device text)
+RETURNS TABLE(loved boolean, love_count bigint)
+LANGUAGE sql STABLE AS $$
+  SELECT
+    EXISTS(SELECT 1 FROM product_loves WHERE product_slug = p_slug AND device_id = p_device) AS loved,
+    (SELECT COUNT(*) FROM product_loves WHERE product_slug = p_slug) AS love_count;
+$$;
+GRANT EXECUTE ON FUNCTION get_product_love(text, text) TO anon, authenticated;
 
 -- STEP G: Seed products (safe to run multiple times)
 INSERT INTO products (name, category, price, image_url, description, stock, is_active, is_featured, is_new) VALUES

@@ -45,13 +45,17 @@
     if (!slug) return;
 
     if (supabaseClient) {
-      const { data } = await supabaseClient.rpc("get_product_love", {
-        p_slug: String(slug),
-        p_device: getDeviceId()
-      });
-      if (data && data.length) {
-        renderButton($btn, data[0].loved, data[0].love_count);
-        return;
+      try {
+        const { data } = await supabaseClient.rpc("get_product_love", {
+          p_slug: String(slug),
+          p_device: getDeviceId()
+        });
+        if (data && data.length) {
+          renderButton($btn, data[0].loved, data[0].love_count);
+          return;
+        }
+      } catch (e) {
+        console.warn("[TSW] Supabase loves fetch failed — using local fallback:", e);
       }
     }
     // Fallback: local-only
@@ -65,13 +69,17 @@
     if (!slug) return;
 
     if (supabaseClient) {
-      const { data, error } = await supabaseClient.rpc("toggle_product_love", {
-        p_slug: String(slug),
-        p_device: getDeviceId()
-      });
-      if (!error && data && data.length) {
-        renderButton($btn, data[0].loved, data[0].love_count);
-        return;
+      try {
+        const { data, error } = await supabaseClient.rpc("toggle_product_love", {
+          p_slug: String(slug),
+          p_device: getDeviceId()
+        });
+        if (!error && data && data.length) {
+          renderButton($btn, data[0].loved, data[0].love_count);
+          return;
+        }
+      } catch (e) {
+        console.warn("[TSW] Supabase love toggle failed — using local fallback:", e);
       }
     }
     // Fallback: local-only toggle
